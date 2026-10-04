@@ -1,0 +1,5 @@
+TODO:add projects view.
+TODO:track all projects in the pc
+TODO:fix: cancel adding note
+TODO:fix: deleting last note - selected last
+TODO:feat: backspace on adding note
