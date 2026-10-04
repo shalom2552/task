@@ -207,8 +207,8 @@ void ui_list(TaskList* list, char* title)
         char* empty = "List is empty\n";
         display("\033[%dC%s", (w.ws_col - (int)strlen(empty)) / 2, empty);
     }
-    int curr = 0;
-    for (int i = 0; (size_t)i < list->size; ++i) {
+    size_t curr = 0;
+    for (size_t i = 0; (size_t)i < list->size; ++i) {
         if (curr == cursor.selected_idx && cursor.list_type == list->type) display(BG);
         display(" [%s] %s\n"RST, list->type == LIST_DONE ? "X" : " ", list->tasks[i].title);
         ++curr;
@@ -302,6 +302,19 @@ void flip_selected_task(void)
     }
 }
 
+void delete_task(void)
+{
+    TaskList* list;
+    if (cursor.list_type == LIST_PENDING) list = &pending_tasks;
+    if (cursor.list_type == LIST_DONE)    list = &done_tasks;
+    list_remove(list, cursor.selected_idx);
+}
+
+void add_new_task(void)
+{
+
+}
+
 void run(void)
 {
     while (1) {
@@ -324,6 +337,12 @@ void run(void)
                 break;
             case 'k':
                 cursor_next_item(-1);
+                break;
+            case 'a':
+                add_new_task();
+                break;
+            case 'd':
+                delete_task();
                 break;
             case 'q':
                 return;
