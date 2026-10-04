@@ -128,9 +128,10 @@ void load_tasks(char* path)
         char* nl = strchr(line, '\n');
         if (nl) *nl = '\0';
 
-        char* type = strtok(line, FLSEP);
-        char* title = strtok(NULL, FLSEP);
-        if (!type || !title) continue;
+        size_t sep = strcspn(line, FLSEP);
+        char* type = line;
+        char* title = line + sep + 1;
+        line[sep] = '\0';
 
         while (*title == ' ') ++title;
 
@@ -318,7 +319,7 @@ void add_new_task(void)
     display("\033[?25h"); // show cursor
     display("\033[%dH", w.ws_row); // move to bottom row
 
-    raw_term.c_lflag |= (ECHO);
+    raw_term.c_lflag |= (ECHO | ICANON);
     tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
 
     char new[TITLE_LEN];
@@ -335,7 +336,7 @@ void add_new_task(void)
         list_add(&pending_tasks, &t);
     }
 
-    raw_term.c_lflag &= ~(ECHO);
+    raw_term.c_lflag &= ~(ECHO | ICANON);
     tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
     display("\033[?25l"); // hide cursor
 }
