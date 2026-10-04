@@ -10,6 +10,7 @@
 #include <termios.h>
 
 #define display(...) do { fprintf(stdout, __VA_ARGS__); } while (0)
+#define VERSION "0.0.2"
 
 #define TASKS_PATH ".tasks.txt"
 #define TITLE_LEN 1024
@@ -170,13 +171,19 @@ void store_tasks(char* path)
     fclose(file);
 }
 
+void ui_centered(char* s)
+{
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+    display("\033[%zuG%s", (w.ws_col - strlen(s)) / 2, s);
+}
+
 void ui_devider(char* title)
 {
     struct winsize w; ioctl(0, TIOCGWINSZ, &w);
     for (int i = 0; i < w.ws_col; ++i) {
         display(LNSEP);
     }
-    display("\033[%zuG%s", (w.ws_col - strlen(title)) / 2, title);
+    ui_centered(title);
     display("\n");
 }
 
@@ -203,9 +210,7 @@ void ui_list(TaskList* list, char* title)
 {
     ui_devider(title);
     if (list->size == 0) {
-        struct winsize w; ioctl(0, TIOCGWINSZ, &w);
-        char* empty = "List is empty\n";
-        display("\033[%dC%s", (w.ws_col - (int)strlen(empty)) / 2, empty);
+        ui_centered("List is empty\n");
     }
     size_t curr = 0;
     for (size_t i = 0; (size_t)i < list->size; ++i) {
@@ -223,9 +228,9 @@ void ui_footer(void)
     int done = done_tasks.size;
     int pending = pending_tasks.size;
     display("Total %d | Done %d | Pending %d", done + pending, done, pending);
-    char ratio[10] = "";
-    sprintf(ratio, "%d/%d", done, done + pending);
-    display("\033[%d;%dH%s", w.ws_row, (int)(w.ws_col - strlen(ratio)), ratio);
+    char right[20] = "";
+    sprintf(right, "%d/%d | v%s", done, done + pending, VERSION);
+    display("\033[%d;%dH%s", w.ws_row, (int)(w.ws_col - strlen(right)), right);
 }
 
 void ui_render(void)
@@ -324,16 +329,18 @@ void add_new_task(void)
 
     char new[TITLE_LEN];
     display("\033[0KAdd: ");
-    if (!fgets(new, TITLE_LEN, stdin)) return;
+    if (fgets(new, TITLE_LEN, stdin)) {
+        new[strcspn(new, "\n")] = '\0';
+        int offset = 0;
+        while (new[offset] == ' ' && new[offset] != '\0') ++offset;
 
-    new[strcspn(new, "\n")] = '\0';
-    int offset = 0;
-    while (new[offset] == ' ' && new[offset] != '\0') ++offset;
-
-    if (new[offset] != '\0') {
-        Task t;
-        sprintf(t.title, "%s", new);
-        list_add(&pending_tasks, &t);
+        if (new[offset] != '\0') {
+            Task t;
+            sprintf(t.title, "%s", new);
+            list_add(&pending_tasks, &t);
+        }
+    } else {
+        clearerr(stdin);
     }
 
     raw_term.c_lflag &= ~(ECHO | ICANON);
@@ -341,10 +348,31 @@ void add_new_task(void)
     display("\033[?25l"); // hide cursor
 }
 
+void edit_task_title(void)
+{
+    // TODO:
+}
+
 void help(void)
 {
-    fprintf(stderr, "\nTODO: help\n");
-    abort();
+    display("\033[0H\033[2J");
+    ui_devider("");
+    ui_centered("HELP\n");
+    ui_devider("");
+    puts("keys:");
+    puts("  ENTER   - mark done/undone");
+    puts("  j/k     - list next/prev");
+    puts("  h/l     - tab next/prev");
+    puts("  TAB     - tab next");
+    puts("  a       - add new task");
+    puts("  d       - delete a task");
+    puts("  r       - rename a task");
+    puts("  q       - quit");
+    puts("  ?       - show this help");
+    ui_devider("");
+    ui_centered("press any key...");
+    ui_footer();
+    getchar();
 }
 
 void run(void)
@@ -375,6 +403,9 @@ void run(void)
                 break;
             case 'd':
                 delete_task();
+                break;
+            case 'r':
+                edit_task_title();
                 break;
             case '?':
                 help();

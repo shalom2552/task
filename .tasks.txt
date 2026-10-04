@@ -1,5 +1,5 @@
 DONE:fix: add option to backspace adding new task
 TODO:add projects view.
-TODO:track all projects in the pc
 TODO:fix: add option to cancel adding new
 TODO:feat: add rename task / edit
+TODO:track all projects in the pc
