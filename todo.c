@@ -23,8 +23,10 @@
 #define RST "\033[0m"
 
 struct termios origin_term;
+struct termios raw_term;
 int term_initialized = 0;
 int alt_screen = 1;
+char* tasks_file_path = TASKS_PATH;
 
 typedef enum {
     TAB_TODO,
@@ -69,12 +71,11 @@ void init(void)
     if (!term_initialized) {
         if (alt_screen) display("\033[?1049h");
         tcgetattr(STDIN_FILENO, &origin_term);
-        struct termios raw = origin_term;
-        raw.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+        raw_term = origin_term;
+        raw_term.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
         display("\033[2J"); // clear screen
         display("\033[?25l"); // hide cursor
-
     }
     term_initialized = 1;
 }
@@ -101,8 +102,9 @@ void list_add(TaskList* list, Task* t)
     list->tasks[list->size++] = *t;
 }
 
-void list_remove(TaskList* list, int idx)
+void list_remove(TaskList* list, size_t idx)
 {
+    if (idx >= list->size) return;
     if (list->size < list->capacity / 2) {
         list->capacity /= 2;
         list->tasks = (Task*)realloc(list->tasks, list->capacity * sizeof(Task));
@@ -119,10 +121,7 @@ void load_tasks(char* path)
     size_t size = 0;
 
     file = fopen(path, "r");
-    if (!file) {
-        fprintf(stderr, "fopen: %s: %s\n", strerror(errno), path);
-        return;
-    }
+    if (!file) return;
 
     Task task = {0};
     while (getline(&line, &size, file) != -1) {
@@ -222,7 +221,10 @@ void ui_footer(void)
     ui_devider("");
     int done = done_tasks.size;
     int pending = pending_tasks.size;
-    display("Total %d, Done %d, Pending %d", done + pending, done, pending);
+    display("Total %d | Done %d | Pending %d", done + pending, done, pending);
+    char ratio[10] = "";
+    sprintf(ratio, "%d/%d", done, done + pending);
+    display("\033[%d;%dH%s", w.ws_row, (int)(w.ws_col - strlen(ratio)), ratio);
 }
 
 void ui_render(void)
@@ -312,7 +314,36 @@ void delete_task(void)
 
 void add_new_task(void)
 {
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+    display("\033[?25h"); // show cursor
+    display("\033[%dH", w.ws_row); // move to bottom row
 
+    raw_term.c_lflag |= (ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+
+    char new[TITLE_LEN];
+    display("\033[0KAdd: ");
+    if (!fgets(new, TITLE_LEN, stdin)) return;
+
+    new[strcspn(new, "\n")] = '\0';
+    int offset = 0;
+    while (new[offset] == ' ' && new[offset] != '\0') ++offset;
+
+    if (new[offset] != '\0') {
+        Task t;
+        sprintf(t.title, "%s", new);
+        list_add(&pending_tasks, &t);
+    }
+
+    raw_term.c_lflag &= ~(ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+    display("\033[?25l"); // hide cursor
+}
+
+void help(void)
+{
+    fprintf(stderr, "\nTODO: help\n");
+    abort();
 }
 
 void run(void)
@@ -344,6 +375,9 @@ void run(void)
             case 'd':
                 delete_task();
                 break;
+            case '?':
+                help();
+                break;
             case 'q':
                 return;
             default:
@@ -352,16 +386,22 @@ void run(void)
     }
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
     atexit(cleanup);
     signal(SIGINT, on_sig);
     signal(SIGTERM, on_sig);
     init();
 
-    load_tasks(TASKS_PATH);
+    if (argc > 1) {
+        if (!strcmp(argv[1], "-f")) {
+            tasks_file_path = argv[2];
+        }
+    }
+
+    load_tasks(tasks_file_path);
     run();
-    store_tasks(TASKS_PATH);
+    store_tasks(tasks_file_path);
     return 0;
 }
 
