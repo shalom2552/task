@@ -11,7 +11,7 @@
 
 #define display(...) do { fprintf(stdout, __VA_ARGS__); } while (0)
 
-#define TASKS_PATH "todo.txt"
+#define TASKS_PATH ".tasks.txt"
 #define TITLE_LEN 1024
 
 #define LNSEP "="

@@ -1,8 +1,8 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -pedantic
 
-BIN = todo
-SRC = todo.c
+BIN = task
+SRC = task.c
 
 all: $(BIN)
 
