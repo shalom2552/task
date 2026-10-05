@@ -1,5 +1,8 @@
 DONE:fix: add option to backspace adding new task
 DONE:feat: add rename task / edit
+DONE:feat: move accross lists in all view
 TODO:fix: add option to cancel adding new
 TODO:track all projects in the pc
 TODO:add projects view.
+TODO:feat: add scrolling for tasks bigger then the screen
+

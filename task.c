@@ -21,7 +21,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#define VERSION    "0.0.3"
+#define VERSION    "0.0.4"
 
 #define TASKS_PATH ".tasks.txt"
 #define STRDONE    "DONE"
@@ -313,13 +313,32 @@ void cursor_next_tab(int val)
     cursor.selected_idx = 0;
 }
 
+/* val: 1 or -1 */
 void cursor_next_item(int val)
 {
     TaskList* list = list_get(cursor.list_type);
-    if (val < 0 && cursor.selected_idx == 0) return;
+    if (cursor.tab_type == TAB_ALL) {
+        if (val < 0 && cursor.selected_idx == 0) {
+            if (cursor.list_type == LIST_DONE) {
+                cursor.list_type = LIST_PENDING;
+                cursor.selected_idx = pending_tasks.size - 1;
+            }
+            return;
+        }
 
+        if (val > 0 && cursor.selected_idx == list->size - 1) {
+            if (cursor.list_type == LIST_PENDING) {
+                cursor.list_type = LIST_DONE;
+                cursor.selected_idx = 0;
+            }
+            return;
+        }
+
+    } else {
+        if (val > 0 && cursor.selected_idx == list->size - 1) return;
+        if (val < 0 && cursor.selected_idx == 0) return;
+    }
     cursor.selected_idx += val;
-    if (cursor.selected_idx >= list->size) cursor.selected_idx = list->size - 1;
 }
 
 /* needs to free the returned string */
@@ -336,6 +355,7 @@ char* ui_input_prompt(char* msg)
     assert(prompt);
     display("\033[0K%s: ", msg);
     fgets(prompt, TITLE_LEN, stdin);
+    prompt[strcspn(prompt, "\n")] = '\0';
 
     raw_term.c_lflag &= ~(ECHO | ICANON);
     tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
@@ -417,15 +437,15 @@ void help(void)
     ui_centered("HELP\n");
     ui_devider("");
     puts("keys:");
-    puts("  ENTER   - mark done/undone");
-    puts("  j/k     - list next/prev");
-    puts("  h/l     - tab next/prev");
-    puts("  TAB     - tab next");
-    puts("  a       - add new task");
-    puts("  d       - delete a task");
-    puts("  r       - rename a task");
-    puts("  q       - quit");
-    puts("  ?       - show this help");
+    puts("  ENTER     mark done/undone");
+    puts("  j/k       list next/prev");
+    puts("  h/l       tab next/prev");
+    puts("  TAB       tab next");
+    puts("  a         add new task");
+    puts("  d         delete a task");
+    puts("  r         rename a task");
+    puts("  q         quit");
+    puts("  ?         show this help");
     ui_devider("");
     ui_centered("press any key...");
     ui_footer();
