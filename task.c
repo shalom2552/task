@@ -218,9 +218,11 @@ void ui_centered(char* s)
 void ui_devider(char* title)
 {
     struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+    char sep[1024] = "";
     for (int i = 0; i < w.ws_col; ++i) {
-        display(LNSEP);
+        strcat(sep, LNSEP);
     }
+    display("%s", sep);
     ui_centered(title);
     display("\n");
 }
@@ -293,7 +295,7 @@ void ui_render(void)
         case TAB_ALL:
             ui_list(&pending_tasks, "");
             display("\033[J\033[%dH", w.ws_row / 2 + 1);
-            ui_list(&done_tasks, "");
+            ui_list(&done_tasks, "< Done >");
             break;
         case TAB_TODO:
             ui_list(&pending_tasks, "");
