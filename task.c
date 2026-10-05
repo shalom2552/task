@@ -227,9 +227,8 @@ void ui_devider(char* title)
 
 void ui_title_bar(void)
 {
-    display("\033[H"); // clear screen
     ui_devider("");
-
+    display("\033[K");
     char title[TITLE_LEN] = {0};
     for (int i = 0; i < TAB_COUNT; ++i) {
         char tab[TITLE_LEN] = {0};
@@ -247,13 +246,12 @@ void ui_title_bar(void)
 void ui_list(TaskList* list, char* title)
 {
     ui_devider(title);
-    if (list->size == 0) {
-        ui_centered("List is empty\n");
-    }
+    display("\033[K");
+    if (list->size == 0) ui_centered("List is empty\n");
     size_t curr = 0;
     for (size_t i = 0; (size_t)i < list->size; ++i) {
         if (curr == cursor.selected_idx && cursor.list_type == list->type) display(BG);
-        display(" [%s] %s\n"RST, list->type == LIST_DONE ? "X" : " ", list->tasks[i].title);
+        display(" [%s] %s\033[K\n"RST, list->type == LIST_DONE ? "X" : " ", list->tasks[i].title);
         ++curr;
     }
 }
@@ -275,7 +273,7 @@ void ui_footer(void)
 
 void ui_render(void)
 {
-    display("\033[2J");
+    display("\033[H");
     ui_title_bar();
     switch (cursor.tab_type) {
         case TAB_ALL:
@@ -291,6 +289,7 @@ void ui_render(void)
         default:
             break;
     }
+    display("\033[J");
     ui_footer();
 }
 
