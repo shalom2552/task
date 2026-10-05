@@ -21,7 +21,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#define VERSION    "0.0.4"
+#define VERSION    "0.1.0"
 
 #define TASKS_PATH ".tasks.txt"
 #define STRDONE    "DONE"
@@ -248,11 +248,19 @@ void ui_list(TaskList* list, char* title)
     ui_devider(title);
     display("\033[K");
     if (list->size == 0) ui_centered("List is empty\n");
-    size_t curr = 0;
-    for (size_t i = 0; (size_t)i < list->size; ++i) {
-        if (curr == cursor.selected_idx && cursor.list_type == list->type) display(BG);
-        display(" [%s] %s\033[K\n"RST, list->type == LIST_DONE ? "X" : " ", list->tasks[i].title);
-        ++curr;
+
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+    size_t count = w.ws_row - 5;
+    size_t start = 0;
+
+    if (cursor.tab_type == TAB_ALL) count = w.ws_row / 2 - 3;
+    if (cursor.list_type == list->type && cursor.selected_idx >= count) {
+        start = cursor.selected_idx - count + 1;
+    }
+
+    for (size_t i = start; i < start + count && i < list->size; ++i) {
+        if (i == cursor.selected_idx && cursor.list_type == list->type) display(BG);
+        display(" [%s] %.*s\033[K\n"RST, list->type == LIST_DONE ? "X" : " ", w.ws_col - 5, list->tasks[i].title);
     }
 }
 
@@ -273,11 +281,13 @@ void ui_footer(void)
 
 void ui_render(void)
 {
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
     display("\033[H");
     ui_title_bar();
     switch (cursor.tab_type) {
         case TAB_ALL:
             ui_list(&pending_tasks, "");
+            display("\033[J\033[%dH", w.ws_row / 2 + 1);
             ui_list(&done_tasks, "");
             break;
         case TAB_TODO:
