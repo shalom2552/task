@@ -21,7 +21,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#define VERSION    "0.1.0"
+#define VERSION    "0.1.1"
 
 #define TASKS_PATH ".tasks.txt"
 #define STRDONE    "DONE"
@@ -253,7 +253,12 @@ void ui_list(TaskList* list, char* title)
     size_t count = w.ws_row - 5;
     size_t start = 0;
 
-    if (cursor.tab_type == TAB_ALL) count = w.ws_row / 2 - 3;
+    if (cursor.tab_type == TAB_ALL) {
+        count = w.ws_row / 2 - 3;
+        if (count % 2 == 0 && list->type == LIST_DONE) {
+            ++count;
+        }
+    }
     if (cursor.list_type == list->type && cursor.selected_idx >= count) {
         start = cursor.selected_idx - count + 1;
     }
@@ -272,7 +277,7 @@ void ui_footer(void)
 
     int done = done_tasks.size;
     int pending = pending_tasks.size;
-    display("Total %d | Done %d | Pending %d", done + pending, done, pending);
+    display("Total %d | Done %d | Pending %d | <?> help", done + pending, done, pending);
 
     char right[20] = "";
     sprintf(right, "%d/%d | v%s", done, done + pending, VERSION);
@@ -447,14 +452,17 @@ void help(void)
     ui_devider("");
     puts("keys:");
     puts("  ENTER     mark done/undone");
+    puts("  ↑/↓       list next/prev");
+    puts("  ←/→       tab next/prev");
     puts("  j/k       list next/prev");
     puts("  h/l       tab next/prev");
     puts("  TAB       tab next");
     puts("  a         add new task");
     puts("  d         delete a task");
     puts("  r         rename a task");
-    puts("  q         quit");
     puts("  ?         show this help");
+    puts("  q         quit");
+    puts("  ESC ESC   quit");
     ui_devider("");
     ui_centered("press any key...");
     ui_footer();
@@ -467,6 +475,26 @@ void run(void)
         ui_render();
         char c = getchar();
         switch (c) {
+            case '\033':
+                if (getchar() != '[') return;
+                char e = getchar();
+                switch (e) {
+                    case 'A':
+                        cursor_next_item(-1);
+                        break;
+                    case 'B':
+                        cursor_next_item(1);
+                        break;
+                    case 'C':
+                        cursor_next_tab(1);
+                        break;
+                    case 'D':
+                        cursor_next_tab(-1);
+                        break;
+                    default:
+                        break;
+                }
+                break;
             case 'l':
             case '\t':
                 cursor_next_tab(1);
