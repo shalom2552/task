@@ -1,33 +1,39 @@
+/*
+ * task - a simple task manager tui
+ *
+ * Manage project tasks by using this program in any directory.
+ * Runing this program creates a tasks.txt file you can manage using this TUI.
+ * For using another tasks file simply run this with the `-f` flag:
+ *      `task -f ~/.tasks.txt`
+ *
+ * author:  shalom2552
+ * date:    2026-10-05
+ * license: MIT
+ */
 #include <assert.h>
-#include <stddef.h>
 #include <errno.h>
+#include <signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <unistd.h>
-#include <signal.h>
 #include <termios.h>
+#include <unistd.h>
 
-#define display(...) do { fprintf(stdout, __VA_ARGS__); } while (0)
-#define VERSION "0.0.2"
+#define VERSION    "0.0.3"
 
 #define TASKS_PATH ".tasks.txt"
-#define TITLE_LEN 1024
+#define STRDONE    "DONE"
+#define STRTODO    "TODO"
+#define LNSEP      "="
+#define FLSEP      ":"
 
-#define LNSEP "="
-#define FLSEP ":"
-#define STRDONE "DONE"
-#define STRTODO "TODO"
+#define TITLE_LEN  1024
+#define BG         "\033[1m\033[30m\033[47m"
+#define RST        "\033[0m"
 
-#define BG "\033[1m\033[30m\033[47m"
-#define RST "\033[0m"
-
-struct termios origin_term;
-struct termios raw_term;
-int term_initialized = 0;
-int alt_screen = 1;
-char* tasks_file_path = TASKS_PATH;
+#define display(...) do { fprintf(stdout, __VA_ARGS__); } while (0)
 
 typedef enum {
     TAB_TODO,
@@ -35,12 +41,6 @@ typedef enum {
     TAB_ALL,
     TAB_COUNT
 } TabType;
-
-char* tabs[] = {
-    [TAB_TODO] = "TODO",
-    [TAB_DONE] = "DONE",
-    [TAB_ALL] = "ALL",
-};
 
 typedef enum {
     LIST_PENDING,
@@ -52,30 +52,41 @@ typedef struct {
 } Task;
 
 typedef struct {
-    Task* tasks;
-    size_t size;
-    size_t capacity;
+    Task*    tasks;
+    size_t   size;
+    size_t   capacity;
     ListType type;
 } TaskList;
 
 TaskList pending_tasks = {.type = LIST_PENDING};
-TaskList done_tasks = {.type = LIST_DONE};
+TaskList done_tasks    = {.type = LIST_DONE};
+
+char* tabs[] = {
+    [TAB_TODO] = "TODO",
+    [TAB_DONE] = "DONE",
+    [TAB_ALL]  = "ALL",
+};
 
 struct {
-    TabType tab_type;
+    TabType  tab_type;
     ListType list_type;
-    size_t selected_idx;
+    size_t   selected_idx;
 } cursor = {0};
+
+struct termios origin_term;
+struct termios raw_term;
+int term_initialized  = 0;
+char* tasks_file_path = TASKS_PATH;
 
 void init(void)
 {
     if (!term_initialized) {
-        if (alt_screen) display("\033[?1049h");
+        display("\033[?1049h"); // enter alt-screen
         tcgetattr(STDIN_FILENO, &origin_term);
         raw_term = origin_term;
         raw_term.c_lflag &= ~(ICANON | ECHO);
         tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
-        display("\033[2J"); // clear screen
+        display("\033[2J");   // clear screen
         display("\033[?25l"); // hide cursor
     }
     term_initialized = 1;
@@ -87,8 +98,8 @@ void cleanup(void)
 {
     if (term_initialized) {
         tcsetattr(STDIN_FILENO, TCSANOW, &origin_term);
-        if (alt_screen) display("\033[?1049l");
-        display("\033[?25h"); // show cursor
+        display("\033[?1049l"); // exit alt-screen
+        display("\033[?25h");   // show cursor
     }
     term_initialized = 0;
 }
@@ -113,6 +124,18 @@ void list_remove(TaskList* list, size_t idx)
     }
     memmove(&list->tasks[idx], &list->tasks[idx + 1], (list->size - idx - 1) * sizeof(Task));
     --list->size;
+}
+
+TaskList* list_get(ListType type)
+{
+    switch (type) {
+        case LIST_DONE:
+            return &done_tasks;
+        case LIST_PENDING:
+            return &pending_tasks;
+        default:
+            return NULL;
+    }
 }
 
 void load_tasks(char* path)
@@ -171,10 +194,25 @@ void store_tasks(char* path)
     fclose(file);
 }
 
+size_t ui_len(char* s)
+{
+    size_t n = 0;
+    while (*s) {
+        if (*s == '\033') {
+            while (*s && *s != 'm') ++s;
+            if (*s) ++s;
+            continue;
+        }
+        if (*s != '\n') ++n;
+        ++s;
+    }
+    return n;
+}
+
 void ui_centered(char* s)
 {
     struct winsize w; ioctl(0, TIOCGWINSZ, &w);
-    display("\033[%zuG%s", (w.ws_col - strlen(s)) / 2, s);
+    display("\033[%zuG%s", (w.ws_col - ui_len(s)) / 2, s);
 }
 
 void ui_devider(char* title)
@@ -189,21 +227,21 @@ void ui_devider(char* title)
 
 void ui_title_bar(void)
 {
-    display("\033[H");
+    display("\033[H"); // clear screen
     ui_devider("");
-    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
-    int title_len = 0;
-    for (int i = 0; tabs[i] != 0; ++i) title_len += strlen(tabs[i]) + 2;
 
-    display("\033[%dC", (w.ws_col - title_len) / 2);
+    char title[TITLE_LEN] = {0};
     for (int i = 0; i < TAB_COUNT; ++i) {
+        char tab[TITLE_LEN] = {0};
         if ((TabType)i == cursor.tab_type) {
-            display(BG"[%s]"RST, tabs[i]);
+            sprintf(tab, BG" %s "RST, tabs[i]);
         } else {
-            display(" %s ", tabs[i]);
+            sprintf(tab, " %s ", tabs[i]);
         }
+        strcat(title, tab);
     }
-    display("\n");
+    strcat(title, "\n");
+    ui_centered(title);
 }
 
 void ui_list(TaskList* list, char* title)
@@ -225,9 +263,11 @@ void ui_footer(void)
     struct winsize w; ioctl(0, TIOCGWINSZ, &w);
     display("\033[%dH", w.ws_row - 1);
     ui_devider("");
+
     int done = done_tasks.size;
     int pending = pending_tasks.size;
     display("Total %d | Done %d | Pending %d", done + pending, done, pending);
+
     char right[20] = "";
     sprintf(right, "%d/%d | v%s", done, done + pending, VERSION);
     display("\033[%d;%dH%s", w.ws_row, (int)(w.ws_col - strlen(right)), right);
@@ -235,7 +275,7 @@ void ui_footer(void)
 
 void ui_render(void)
 {
-    display("\033[2J"); // clear screen
+    display("\033[2J");
     ui_title_bar();
     switch (cursor.tab_type) {
         case TAB_ALL:
@@ -275,16 +315,76 @@ void cursor_next_tab(int val)
 
 void cursor_next_item(int val)
 {
-    TaskList* list;
-    if (cursor.list_type == LIST_PENDING) list = &pending_tasks;
-    if (cursor.list_type == LIST_DONE)    list = &done_tasks;
-
+    TaskList* list = list_get(cursor.list_type);
     if (val < 0 && cursor.selected_idx == 0) return;
+
     cursor.selected_idx += val;
     if (cursor.selected_idx >= list->size) cursor.selected_idx = list->size - 1;
 }
 
-void flip_selected_task(void)
+/* needs to free the returned string */
+char* ui_input_prompt(char* msg)
+{
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+    display("\033[?25h");          // show cursor
+    display("\033[%dH", w.ws_row); // move to bottom row
+
+    raw_term.c_lflag |= (ECHO | ICANON);
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+
+    char* prompt = malloc(TITLE_LEN);
+    assert(prompt);
+    display("\033[0K%s: ", msg);
+    fgets(prompt, TITLE_LEN, stdin);
+
+    raw_term.c_lflag &= ~(ECHO | ICANON);
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+    display("\033[?25l"); // hide cursor
+
+    return prompt;
+}
+
+void task_create(void)
+{
+    char* title = ui_input_prompt("New");
+
+    int offset = 0;
+    while (title[offset] == ' ' && title[offset] != '\0') ++offset;
+    if (title[offset] != '\0') {
+        Task t;
+        sprintf(t.title, "%s", title + offset);
+        list_add(&pending_tasks, &t);
+    }
+
+    free(title);
+}
+
+void task_delete(void)
+{
+    TaskList* list = list_get(cursor.list_type);
+    list_remove(list, cursor.selected_idx);
+}
+
+void task_edit_title(void)
+{
+    Task* t = NULL;
+    TaskList* list = list_get(cursor.list_type);
+
+    for (size_t i = 0; i < list->size; ++i) {
+        if (i == cursor.selected_idx) {
+            t = &list->tasks[i];
+            break;
+        }
+    }
+
+    if (t) {
+        char* new_name = ui_input_prompt("Rename");
+        sprintf(t->title, "%s", new_name);
+        free(new_name);
+    }
+}
+
+void task_mark(void)
 {
     TaskList* src;
     TaskList* dst;
@@ -308,49 +408,6 @@ void flip_selected_task(void)
     if (cursor.selected_idx >= src->size) {
         cursor_next_item(-1);
     }
-}
-
-void delete_task(void)
-{
-    TaskList* list;
-    if (cursor.list_type == LIST_PENDING) list = &pending_tasks;
-    if (cursor.list_type == LIST_DONE)    list = &done_tasks;
-    list_remove(list, cursor.selected_idx);
-}
-
-void add_new_task(void)
-{
-    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
-    display("\033[?25h"); // show cursor
-    display("\033[%dH", w.ws_row); // move to bottom row
-
-    raw_term.c_lflag |= (ECHO | ICANON);
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
-
-    char new[TITLE_LEN];
-    display("\033[0KAdd: ");
-    if (fgets(new, TITLE_LEN, stdin)) {
-        new[strcspn(new, "\n")] = '\0';
-        int offset = 0;
-        while (new[offset] == ' ' && new[offset] != '\0') ++offset;
-
-        if (new[offset] != '\0') {
-            Task t;
-            sprintf(t.title, "%s", new);
-            list_add(&pending_tasks, &t);
-        }
-    } else {
-        clearerr(stdin);
-    }
-
-    raw_term.c_lflag &= ~(ECHO | ICANON);
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
-    display("\033[?25l"); // hide cursor
-}
-
-void edit_task_title(void)
-{
-    // TODO:
 }
 
 void help(void)
@@ -390,7 +447,7 @@ void run(void)
                 break;
             case ' ':
             case '\n':
-                flip_selected_task();
+                task_mark();
                 break;
             case 'j':
                 cursor_next_item(1);
@@ -399,13 +456,13 @@ void run(void)
                 cursor_next_item(-1);
                 break;
             case 'a':
-                add_new_task();
+                task_create();
                 break;
             case 'd':
-                delete_task();
+                task_delete();
                 break;
             case 'r':
-                edit_task_title();
+                task_edit_title();
                 break;
             case '?':
                 help();
@@ -432,7 +489,9 @@ int main(int argc, char** argv)
     }
 
     load_tasks(tasks_file_path);
+
     run();
+
     store_tasks(tasks_file_path);
     return 0;
 }
