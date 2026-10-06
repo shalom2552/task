@@ -2,11 +2,13 @@ DONE:fix: add option to backspace adding new task
 DONE:feat: add rename task / edit
 DONE:feat: move accross lists in all view
 DONE:feat: add scrolling for tasks bigger then the screen
+DONE:Refactor: make Tasklist 'List' so it can also hold projects
+DONE:Track all projects in state file
+DONE:Have a state file
+DONE:Extract project name
+DONE:Get the project current path
+DONE:add projects view.
+DONE:track all projects in the pc
 TODO:fix: add option to cancel adding new
-TODO:track all projects in the pc
-TODO:add projects view.
 TODO:fix: move across lists when one is empty
-TODO:Get the project current path
-TODO:Extract project name
-TODO:Have a state file
-TODO:Track all projects in state file
+TODO:feat: add arbitrary projects (no location)
