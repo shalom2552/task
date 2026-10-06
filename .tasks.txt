@@ -10,6 +10,6 @@ DONE:Get the project current path
 DONE:add projects view.
 DONE:track all projects in the pc
 DONE:implement: switching projects
+DONE:fix: move across lists when one is empty
 TODO:fix: add option to cancel adding new
-TODO:fix: move across lists when one is empty
 TODO:feat: add arbitrary projects (no location)

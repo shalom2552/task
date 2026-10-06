@@ -27,7 +27,7 @@
 #define VERSION    "0.1.1"
 
 #define TASKS_FILE ".tasks.txt"
-#define STATE_FILE "%s/.local/state/task/state.txt"
+#define STATE_FILE "%s/.local/share/task/state.txt"
 #define TEXT_LEN   2048
 
 #define BG         "\033[1m\033[30m\033[47m"
@@ -444,7 +444,7 @@ void cursor_next_item(int val)
 {
     List* list = list_get(cursor.list_type);
     if (cursor.tab_type == TAB_ALL) {
-        if (val < 0 && cursor.selected_idx == 0) {
+        if (val < 0 && (cursor.selected_idx == 0 || list->size == 0)) {
             if (cursor.list_type == LIST_DONE) {
                 cursor.list_type = LIST_PENDING;
                 cursor.selected_idx = pending_tasks.size - 1;
@@ -452,7 +452,7 @@ void cursor_next_item(int val)
             return;
         }
 
-        if (val > 0 && cursor.selected_idx == list->size - 1) {
+        if (val > 0 && (cursor.selected_idx == list->size - 1 || list->size == 0)) {
             if (cursor.list_type == LIST_PENDING) {
                 cursor.list_type = LIST_DONE;
                 cursor.selected_idx = 0;
