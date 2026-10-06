@@ -48,17 +48,17 @@
     } while (0)
 
 typedef enum {
-    TAB_ALL,
     TAB_TODO,
     TAB_DONE,
+    TAB_ALL,
     TAB_PROJ,
     TAB_COUNT
 } TabType;
 
 char* tabs[] = {
-    [TAB_ALL]  = "ALL",
     [TAB_TODO] = "PENDING",
     [TAB_DONE] = "DONE",
+    [TAB_ALL]  = "ALL",
     [TAB_PROJ] = "PROJECTS",
 };
 
@@ -91,9 +91,8 @@ struct {
 } cursor = {0};
 
 int is_new_project = 1;
-char current_project[TEXT_LEN];
-
-char* tasks_file_path = TASKS_FILE;
+char cr_project_path[TEXT_LEN];
+char tasks_file_path[TEXT_LEN] = TASKS_FILE;
 char state_file_path[TEXT_LEN];
 
 struct termios origin_term;
@@ -126,6 +125,14 @@ void cleanup(void)
     term_initialized = 0;
 }
 
+// char* str_home_as_tilda(char* s)
+// {
+//     char* lastSlash = strrchr(s, '/');
+//     char* replaced = strndup(s, lastSlash - s);
+//
+//     return replaced;
+// }
+//
 void list_add(List* list, Item* t)
 {
     if (list->size == list->capacity) {
@@ -162,27 +169,35 @@ List* list_get(ListType type)
     }
 }
 
-void load_state(char* path)
+Item* list_get_item(List* list, size_t idx)
+{
+    for (size_t i = 0; i < list->size; ++i) {
+        if (i == idx) return &list->tasks[i];
+    }
+    return NULL;
+}
+
+void load_state(void)
 {
     FILE* file;
     char* line = NULL;
     size_t size = 0;
 
-    file = fopen(path, "r");
+    file = fopen(state_file_path, "r");
     if (!file) return;
 
     while (getline(&line, &size, file) != -1) {
         char* nl = strchr(line, '\n');
         if (nl) *nl = '\0';
 
-        if (strcmp(line, current_project) == 0) is_new_project = 0;
+        if (strcmp(line, cr_project_path) == 0) is_new_project = 0;
         Item p;
         sprintf(p.title, "%s", line);
         list_add(&projects, &p);
     }
     if (is_new_project) {
         Item p;
-        sprintf(p.title, "%s", current_project);
+        sprintf(p.title, "%s", cr_project_path);
         list_add(&projects, &p);
     }
 
@@ -190,9 +205,10 @@ void load_state(char* path)
     fclose(file);
 }
 
-void save_state(char* path)
+void save_state(void)
 {
     FILE* file;
+    char* path = state_file_path;
 
     // Source - https://stackoverflow.com/a/21229518
     char* lastSlash = strrchr(path, '/');
@@ -212,10 +228,10 @@ void save_state(char* path)
     }
 
     if (is_new_project) {
-        fprintf(file, "%s\n", current_project);
+        fprintf(file, "%s\n", cr_project_path);
 
         Item t;
-        sprintf(t.title, "Added state: %s", current_project + 20);
+        sprintf(t.title, "Added state: %s", cr_project_path + 20);
         list_add(&pending_tasks, &t);
         sprintf(t.title, "State file: %s", state_file_path + 20);
         list_add(&pending_tasks, &t);
@@ -365,7 +381,9 @@ void ui_footer(void)
 
     int done = done_tasks.size;
     int pending = pending_tasks.size;
-    display("Total %d | Done %d | Pending %d | <?> help", done + pending, done, pending);
+    char* project = strrchr(cr_project_path, '/') + 1;
+    display("Project /%s | Total %d | Pending %d | Done %d | <?> help", 
+            project, done + pending, pending, done);
 
     char right[20] = "";
     sprintf(right, "%d/%d | v%s", done, done + pending, VERSION);
@@ -495,15 +513,8 @@ void task_delete(void)
 
 void task_edit_title(void)
 {
-    Item* t = NULL;
     List* list = list_get(cursor.list_type);
-
-    for (size_t i = 0; i < list->size; ++i) {
-        if (i == cursor.selected_idx) {
-            t = &list->tasks[i];
-            break;
-        }
-    }
+    Item* t = list_get_item(list, cursor.selected_idx);
 
     if (t) {
         char* new_name = ui_input_prompt("Rename");
@@ -540,7 +551,23 @@ void task_mark(void)
 
 void project_select()
 {
-    // TODO: implement
+    store_tasks(tasks_file_path);
+    pending_tasks.size = 0;
+    done_tasks.size = 0;
+
+    Item* p = list_get_item(&projects, cursor.selected_idx);
+    if (p) {
+        int n = snprintf(tasks_file_path, TEXT_LEN, "%s/%s", p->title, TASKS_FILE);
+        if (n >= TEXT_LEN) {
+            derror("path too long: %s", p->title);
+            return;
+        }
+        snprintf(cr_project_path, TEXT_LEN, "%s", p->title);
+        load_tasks(tasks_file_path);
+    }
+    cursor.selected_idx = 0;
+    cursor.list_type = 0;
+    cursor.tab_type = 0;
     return;
 }
 
@@ -645,6 +672,7 @@ void run(void)
                     case 'C':
                         cursor_next_tab(1);
                         break;
+                    case 90:
                     case 'D':
                         cursor_next_tab(-1);
                         break;
@@ -698,20 +726,20 @@ int main(int argc, char** argv)
 
     if (argc > 1) {
         if (!strcmp(argv[1], "-f")) {
-            tasks_file_path = argv[2];
+            sprintf(tasks_file_path, "%s", argv[2]);
         }
     }
 
-    getcwd(current_project, TEXT_LEN);
+    getcwd(cr_project_path, TEXT_LEN);
     sprintf(state_file_path, STATE_FILE, getenv("HOME"));
 
-    load_state(state_file_path);
+    load_state();
     load_tasks(tasks_file_path);
 
     run();
 
     store_tasks(tasks_file_path);
-    save_state(state_file_path);
+    save_state();
     return 0;
 }
 
