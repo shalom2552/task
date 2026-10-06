@@ -12,6 +12,6 @@ DONE:track all projects in the pc
 DONE:implement: switching projects
 DONE:fix: move across lists when one is empty
 DONE:feat: remove project with confirm prompt
+DONE:feat: add prompt on non existing projects
 TODO:fix: add option to cancel adding new
 TODO:feat: add arbitrary projects (no location)
-TODO:feat: add prompt on non existing projects

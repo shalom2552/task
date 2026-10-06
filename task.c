@@ -335,6 +335,72 @@ void ui_devider(char* title)
     display("\n");
 }
 
+void ui_frame(int height, int width)
+{
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+
+    int y = (w.ws_row - height) / 2;
+    int x = (w.ws_col - width) / 2 - 1;
+    if ((w.ws_row - height) % 2 == 0) --y;
+
+    display("\033[%d;%dH", y, x);
+
+    display("╭");
+    for (int i = 0; i < width; ++i) {
+        display("─");
+    }
+    display("╮");
+    display("\n\033[%dG", x);
+
+    for (int i = 0; i < height; ++i) {
+        display("│");
+        for (int j = 0; j < width; ++j) {
+            display(" ");
+        }
+        display("│");
+        display("\n\033[%dG", x);
+    }
+
+    display("╰");
+    for (int i = 0; i < width; ++i) {
+        display("─");
+    }
+    display("╯");
+}
+
+void ui_message(char * msg)
+{
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+    int msg_len = ui_len(msg);
+    ui_frame(3, msg_len + 8);
+    display("\033[%dH", w.ws_row / 2);
+    ui_centered(msg);
+    getchar();
+}
+
+/* needs to free the returned string */
+char* ui_input_prompt(char* msg)
+{
+    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
+    display("\033[?25h");          // show cursor
+    display("\033[%dH", w.ws_row); // move to bottom row
+
+    raw_term.c_lflag |= (ECHO | ICANON);
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+
+    char* prompt = malloc(TEXT_LEN);
+    assert(prompt);
+    display("\033[0K%s: ", msg);
+    fgets(prompt, TEXT_LEN, stdin);
+    prompt[strcspn(prompt, "\n")] = '\0';
+
+    raw_term.c_lflag &= ~(ECHO | ICANON);
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+    display("\033[?25l"); // hide cursor
+
+    return prompt;
+}
+
 void ui_title_bar(void)
 {
     ui_devider("");
@@ -421,29 +487,6 @@ void ui_render(void)
     }
     display("\033[J");
     ui_footer();
-}
-
-/* needs to free the returned string */
-char* ui_input_prompt(char* msg)
-{
-    struct winsize w; ioctl(0, TIOCGWINSZ, &w);
-    display("\033[?25h");          // show cursor
-    display("\033[%dH", w.ws_row); // move to bottom row
-
-    raw_term.c_lflag |= (ECHO | ICANON);
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
-
-    char* prompt = malloc(TEXT_LEN);
-    assert(prompt);
-    display("\033[0K%s: ", msg);
-    fgets(prompt, TEXT_LEN, stdin);
-    prompt[strcspn(prompt, "\n")] = '\0';
-
-    raw_term.c_lflag &= ~(ECHO | ICANON);
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
-    display("\033[?25l"); // hide cursor
-
-    return prompt;
 }
 
 void cursor_next_tab(int val)
@@ -571,7 +614,7 @@ void project_select()
     }
 
     if (access(project_file_path, F_OK)) {
-        // TODO: ui message 
+        ui_message("Project not exist");
         list_remove(&projects, p);
         if (cursor.selected_idx >= projects.size) {
             cursor_next_item(-1);
