@@ -1,4 +1,3 @@
-DONE:fix: add option to backspace adding new task
 DONE:feat: add rename task / edit
 DONE:feat: move accross lists in all view
 DONE:feat: add scrolling for tasks bigger then the screen
@@ -13,5 +12,8 @@ DONE:implement: switching projects
 DONE:fix: move across lists when one is empty
 DONE:feat: remove project with confirm prompt
 DONE:feat: add prompt on non existing projects
-TODO:fix: add option to cancel adding new
 TODO:feat: add arbitrary projects (no location)
+TODO:fix: task not showing all projects
+TODO:fix: start and exit creates the file
+TODO:fix: add option to backspace adding new task
+TODO:fix: add option to cancel adding new
